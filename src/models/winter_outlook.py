@@ -18,6 +18,11 @@ from sklearn.preprocessing import OneHotEncoder
 
 
 WINTER_MONTHS = (11, 12, 1, 2, 3, 4)
+SEASON_PHASES = {
+    "early": {"label": "Early season", "months": "Nov–Dec", "month_values": (11, 12)},
+    "mid": {"label": "Mid season", "months": "Jan–Feb", "month_values": (1, 2)},
+    "late": {"label": "Late season", "months": "Mar–Apr", "month_values": (3, 4)},
+}
 CLIMATE_INDICES = ("enso", "pdo", "ao", "pna")
 CLIMATE_FEATURES = (*CLIMATE_INDICES, "temperature_anomaly")
 REGIONS = {
@@ -156,8 +161,9 @@ class CaliforniaWinterOutlook:
         }
 
 
-def summarize_outlook(forecast: pd.DataFrame, climatology: pd.DataFrame) -> Dict[str, object]:
-    """Return statewide wetness/snow totals plus the Nov-Apr statewide trajectory."""
+def summarize_outlook(forecast: pd.DataFrame, climatology: pd.DataFrame,
+                      units: str = "metric") -> Dict[str, object]:
+    """Return statewide wetness/snow totals, Nov-Apr trajectory, and seasonal phases."""
     climate = validate_history(climatology)
     normal = climate.groupby(["region", "month"])[["precipitation_mm", "snowfall_cm"]].mean()
     compared = forecast.join(normal, on=["region", "month"], rsuffix="_normal")
@@ -174,7 +180,26 @@ def summarize_outlook(forecast: pd.DataFrame, climatology: pd.DataFrame) -> Dict
         snowfall_cm=("weighted_snow", "sum"),
     )
     precip_pct = 100 * weighted.weighted_precip.sum() / weighted.weighted_normal.sum()
-    category = "wet" if precip_pct >= 110 else "dry" if precip_pct <= 90 else "near_normal"
+    category = _wetness_category(precip_pct)
+    season_phases = []
+    for phase_id, phase in SEASON_PHASES.items():
+        phase_frame = weighted[weighted["month"].isin(phase["month_values"])]
+        phase_precip = float(phase_frame.weighted_precip.sum())
+        phase_normal = float(phase_frame.weighted_normal.sum())
+        phase_pct = 100 * phase_precip / phase_normal if phase_normal else 100.0
+        season_phases.append({
+            "id": phase_id,
+            "label": phase["label"],
+            "months": phase["months"],
+            "category": _wetness_category(phase_pct),
+            "predicted_temp_c": float(
+                (phase_frame.temperature_anomaly * phase_frame.area_weight).sum()
+                / phase_frame.area_weight.sum()
+            ),
+            "precipitation_mm": phase_precip,
+            "precipitation_pct_normal": float(phase_pct),
+            "snowfall_cm": float(phase_frame.weighted_snow.sum()),
+        })
     return {
         "statewide_wetness": category,
         "statewide_precipitation_pct_normal": float(precip_pct),
@@ -184,8 +209,60 @@ def summarize_outlook(forecast: pd.DataFrame, climatology: pd.DataFrame) -> Dict
             (weighted.temperature_anomaly * weighted.area_weight).sum() / weighted.area_weight.sum()
         ),
         "trajectory": trajectory.to_dict(orient="records"),
+        "season_phases": season_phases,
         "regional_monthly": compared.to_dict(orient="records"),
+        "units": units,
+        "display": format_outlook_units({
+            "statewide_precipitation_mm": float(weighted.weighted_precip.sum()),
+            "statewide_snowfall_cm": float(weighted.weighted_snow.sum()),
+            "statewide_temperature_anomaly_c": float(
+                (weighted.temperature_anomaly * weighted.area_weight).sum() / weighted.area_weight.sum()
+            ),
+            "season_phases": season_phases,
+        }, units),
     }
+
+
+def _wetness_category(precip_pct: float) -> str:
+    if precip_pct >= 110:
+        return "wet"
+    if precip_pct <= 90:
+        return "dry"
+    return "near_normal"
+
+
+def format_outlook_units(values: Dict[str, object], units: str = "metric") -> Dict[str, object]:
+    """Convert metric model outputs for imperial or metric presentation."""
+    if units not in {"metric", "imperial"}:
+        raise ValueError("units must be 'metric' or 'imperial'")
+
+    def convert_temp(c: float) -> Dict[str, float]:
+        return {"c": c, "f_delta": c * 9 / 5}
+
+    def convert_precip(mm: float) -> Dict[str, float]:
+        return {"mm": mm, "in": mm / 25.4}
+
+    def convert_snow(cm: float) -> Dict[str, float]:
+        return {"cm": cm, "in": cm / 2.54}
+
+    display = {
+        "temperature": convert_temp(float(values["statewide_temperature_anomaly_c"])),
+        "precipitation": convert_precip(float(values["statewide_precipitation_mm"])),
+        "snowfall": convert_snow(float(values["statewide_snowfall_cm"])),
+        "season_phases": [],
+    }
+    for phase in values.get("season_phases", []):
+        display["season_phases"].append({
+            "id": phase["id"],
+            "label": phase["label"],
+            "months": phase["months"],
+            "category": phase["category"],
+            "temperature": convert_temp(float(phase["predicted_temp_c"])),
+            "precipitation": convert_precip(float(phase["precipitation_mm"])),
+            "snowfall": convert_snow(float(phase["snowfall_cm"])),
+            "precipitation_pct_normal": phase["precipitation_pct_normal"],
+        })
+    return display
 
 
 def generate_demo_history(start_water_year: int = 1981, end_water_year: int = 2024,

@@ -20,6 +20,9 @@ def test_statewide_winter_outlook_e2e():
     assert np.isfinite(forecast[["temperature_anomaly", "precipitation_mm", "snowfall_cm"]]).all().all()
     assert (forecast[["precipitation_mm", "snowfall_cm"]] >= 0).all().all()
     assert len(summary["trajectory"]) == 6
+    assert len(summary["season_phases"]) == 3
+    assert {phase["id"] for phase in summary["season_phases"]} == {"early", "mid", "late"}
+    assert summary["display"]["temperature"]["c"] == summary["statewide_temperature_anomaly_c"]
     assert summary["statewide_wetness"] in {"dry", "near_normal", "wet"}
     assert metrics["precipitation_r2"] > 0.45
     assert metrics["snowfall_r2"] > 0.45
