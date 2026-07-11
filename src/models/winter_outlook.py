@@ -26,13 +26,13 @@ SEASON_PHASES = {
 CLIMATE_INDICES = ("enso", "pdo", "ao", "pna")
 CLIMATE_FEATURES = (*CLIMATE_INDICES, "temperature_anomaly")
 REGIONS = {
-    "north_coast": {"latitude": 40.2, "elevation_m": 900, "area_weight": 0.16},
-    "shasta_cascades": {"latitude": 41.0, "elevation_m": 1700, "area_weight": 0.12},
-    "northern_sierra": {"latitude": 39.6, "elevation_m": 2100, "area_weight": 0.14},
-    "central_sierra": {"latitude": 38.3, "elevation_m": 2300, "area_weight": 0.15},
-    "southern_sierra": {"latitude": 36.8, "elevation_m": 2400, "area_weight": 0.13},
-    "central_coast_valleys": {"latitude": 36.7, "elevation_m": 250, "area_weight": 0.18},
-    "southern_california": {"latitude": 34.2, "elevation_m": 750, "area_weight": 0.12},
+    "north_coast": {"latitude": 40.2, "elevation_m": 900, "area_weight": 0.16, "label": "North Coast"},
+    "shasta_cascades": {"latitude": 41.0, "elevation_m": 1700, "area_weight": 0.12, "label": "Shasta & Cascades"},
+    "northern_sierra": {"latitude": 39.6, "elevation_m": 2100, "area_weight": 0.14, "label": "Northern Sierra"},
+    "central_sierra": {"latitude": 38.3, "elevation_m": 2300, "area_weight": 0.15, "label": "Central Sierra"},
+    "southern_sierra": {"latitude": 36.8, "elevation_m": 2400, "area_weight": 0.13, "label": "Southern Sierra"},
+    "central_coast_valleys": {"latitude": 36.7, "elevation_m": 250, "area_weight": 0.18, "label": "Central Coast & Valleys"},
+    "southern_california": {"latitude": 34.2, "elevation_m": 750, "area_weight": 0.12, "label": "Southern California"},
 }
 
 
@@ -161,6 +161,28 @@ class CaliforniaWinterOutlook:
         }
 
 
+def _describe_regional_risks(region: str, precip_pct: float, snow_pct: float, temp_c: float) -> str:
+    """Summarize plausible winter hazards from regional forecast anomalies."""
+    risks = []
+    if precip_pct >= 115:
+        risks.append("elevated flood and debris-flow risk during atmospheric river events")
+    elif precip_pct <= 85:
+        risks.append("drought stress and reduced reservoir recharge")
+    if snow_pct <= 85 or temp_c >= 0.8:
+        risks.append("below-normal snowpack and weaker spring runoff")
+    if temp_c >= 1.0:
+        risks.append("rain-on-snow and early melt at mid elevations")
+    if temp_c <= -0.8 and region in {"central_coast_valleys", "southern_california"}:
+        risks.append("agricultural frost and cold-sensitive crop stress")
+    if region in {"north_coast", "shasta_cascades", "northern_sierra"} and precip_pct >= 110:
+        risks.append("landslide and coastal erosion concerns on saturated slopes")
+    if region in {"central_coast_valleys", "southern_california"} and precip_pct >= 110:
+        risks.append("urban flooding and post-fire burn-scar runoff")
+    if not risks:
+        risks.append("typical winter variability with no dominant extreme hazard signal")
+    return "; ".join(risks[:3]).capitalize() + "."
+
+
 def summarize_outlook(forecast: pd.DataFrame, climatology: pd.DataFrame,
                       units: str = "metric") -> Dict[str, object]:
     """Return statewide wetness/snow totals, Nov-Apr trajectory, and seasonal phases."""
@@ -200,6 +222,24 @@ def summarize_outlook(forecast: pd.DataFrame, climatology: pd.DataFrame,
             "precipitation_pct_normal": float(phase_pct),
             "snowfall_cm": float(phase_frame.weighted_snow.sum()),
         })
+    regional_summary = []
+    for region, geo in REGIONS.items():
+        region_frame = compared[compared["region"] == region]
+        precip_total = float(region_frame.precipitation_mm.sum())
+        normal_total = float(region_frame.precipitation_mm_normal.sum())
+        snow_total = float(region_frame.snowfall_cm.sum())
+        snow_normal = float(region_frame.snowfall_cm_normal.sum())
+        temp_mean = float(region_frame.temperature_anomaly.mean())
+        precip_pct = 100 * precip_total / normal_total if normal_total else 100.0
+        snow_pct = 100 * snow_total / snow_normal if snow_normal else 100.0
+        regional_summary.append({
+            "name": geo["label"],
+            "precipitation_mm": precip_total,
+            "normal_mm": normal_total,
+            "snowfall_cm": snow_total,
+            "precipitation_pct_normal": float(precip_pct),
+            "risks": _describe_regional_risks(region, precip_pct, snow_pct, temp_mean),
+        })
     return {
         "statewide_wetness": category,
         "statewide_precipitation_pct_normal": float(precip_pct),
@@ -210,6 +250,7 @@ def summarize_outlook(forecast: pd.DataFrame, climatology: pd.DataFrame,
         ),
         "trajectory": trajectory.to_dict(orient="records"),
         "season_phases": season_phases,
+        "regional_summary": regional_summary,
         "regional_monthly": compared.to_dict(orient="records"),
         "units": units,
         "display": format_outlook_units({

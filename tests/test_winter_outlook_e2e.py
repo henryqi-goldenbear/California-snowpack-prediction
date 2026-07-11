@@ -21,6 +21,8 @@ def test_statewide_winter_outlook_e2e():
     assert (forecast[["precipitation_mm", "snowfall_cm"]] >= 0).all().all()
     assert len(summary["trajectory"]) == 6
     assert len(summary["season_phases"]) == 3
+    assert len(summary["regional_summary"]) == 7
+    assert all(region["risks"] for region in summary["regional_summary"])
     assert {phase["id"] for phase in summary["season_phases"]} == {"early", "mid", "late"}
     assert summary["display"]["temperature"]["c"] == summary["statewide_temperature_anomaly_c"]
     assert summary["statewide_wetness"] in {"dry", "near_normal", "wet"}

@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { BrainCircuit, CloudRain, Info, LoaderCircle, MountainSnow, RotateCcw, Sparkles, ThermometerSun, Waves } from "lucide-react";
+import { BrainCircuit, CloudRain, Info, LoaderCircle, MountainSnow, RotateCcw, Sparkles, ThermometerSun, TriangleAlert, Waves } from "lucide-react";
 import { formatPrecip, formatSnow, formatTempAnomaly, precipLabel, snowLabel, tempLabel, type UnitSystem } from "./units";
 
 type Inputs = { year: number; enso: number; pdo: number; ao: number; pna: number };
 type MonthResult = { month: string; precip: number; snow: number };
-type RegionResult = { name: string; precip: number; normal: number; snow: number };
+type RegionResult = { name: string; precip: number; normal: number; snow: number; risks: string };
 type SeasonPhase = {
   id: "early" | "mid" | "late"; label: string; months: string; category: string;
   predictedTemp: number; precip: number; pct: number; snow: number; summary: string;
@@ -25,7 +25,7 @@ const emptyForecast: Forecast = {
   summary: "Run Mistral to turn the selected climate signals into a statewide winter outlook.",
   category: "Awaiting forecast", predictedTemp: 0, precip: 0, pct: 100, snow: 0, seasonPhases: emptyPhases,
   trajectory: ["Nov", "Dec", "Jan", "Feb", "Mar", "Apr"].map(month => ({ month, precip: 0, snow: 0 })),
-  details: ["North Coast", "Shasta & Cascades", "Northern Sierra", "Central Sierra", "Southern Sierra", "Central Coast & Valleys", "Southern California"].map(name => ({ name, precip: 0, normal: 1, snow: 0 })),
+  details: ["North Coast", "Shasta & Cascades", "Northern Sierra", "Central Sierra", "Southern Sierra", "Central Coast & Valleys", "Southern California"].map(name => ({ name, precip: 0, normal: 1, snow: 0, risks: "Mistral will outline the main winter hazards for this region." })),
 };
 
 function Slider({ label, hint, value, min, max, step, onChange }: { label: string; hint: string; value: number; min: number; max: number; step: number; onChange: (n: number) => void }) {
@@ -102,7 +102,7 @@ export default function App() {
         <div className="panel chart-card"><div className="chart-head"><div><span className="section-kicker">03 · Winter trajectory</span><h2>How Mistral sees the season</h2></div><div className="toggle"><button className={mode === "precip" ? "active" : ""} onClick={() => setMode("precip")}>Precipitation</button><button className={mode === "snow" ? "active" : ""} onClick={() => setMode("snow")}>Snowfall</button></div></div><div className="chart" aria-label={`${mode} monthly trajectory in ${units}`}>{result.trajectory.map((x, idx) => { const raw = mode === "precip" ? x.precip : x.snow; const val = mode === "precip" ? formatPrecip(raw, units) : formatSnow(raw, units); return <div className="bar-wrap" key={x.month}><span>{hasForecast ? (units === "imperial" ? val.toFixed(1) : Math.round(val)) : ""}</span><div className="bar" style={{ height: `${hasForecast ? Math.max(8, val / maxChart * 100) : 2}%`, animationDelay: `${idx * 45}ms` }}/><b>{x.month}</b></div>})}</div><div className="chart-note"><Waves size={16}/> {hasForecast ? `${peak.month} is the modeled precipitation peak. Temperature determines how much reaches the ground as snow.` : "Run Mistral to generate the November–April trajectory."}</div></div>
       </section>
     </section>
-    <section className="regional"><div className="regional-head"><div><span className="section-kicker">04 · Regional detail</span><h2>One state, seven Mistral outlooks</h2></div><p>Seasonal totals generated from the selected climate signals.</p></div><div className="region-grid">{result.details.map(r => { const pct = r.normal ? r.precip / r.normal * 100 : 0; return <article key={r.name}><div className="region-top"><h3>{r.name}</h3><span>{hasForecast ? `${Math.round(pct)}%` : "—"}</span></div><div className="mini-track"><i style={{ width: `${hasForecast ? Math.min(100, pct * .8) : 0}%` }}/><u style={{ left: "80%" }}/></div><div className="region-values"><span><CloudRain/> {hasForecast ? displayAmount(r.precip, units, "precip") : "—"} {precipLabel(units)}</span><span><MountainSnow/> {hasForecast ? displayAmount(r.snow, units, "snow") : "—"} {snowLabel(units)}</span></div></article>})}</div></section>
+    <section className="regional"><div className="regional-head"><div><span className="section-kicker">04 · Regional detail</span><h2>One state, seven Mistral outlooks</h2></div><p>Seasonal totals and regional winter risks from the selected climate signals.</p></div><div className="region-grid">{result.details.map(r => { const pct = r.normal ? r.precip / r.normal * 100 : 0; return <article key={r.name}><div className="region-top"><h3>{r.name}</h3><span>{hasForecast ? `${Math.round(pct)}%` : "—"}</span></div><div className="mini-track"><i style={{ width: `${hasForecast ? Math.min(100, pct * .8) : 0}%` }}/><u style={{ left: "80%" }}/></div><div className="region-values"><span><CloudRain/> {hasForecast ? displayAmount(r.precip, units, "precip") : "—"} {precipLabel(units)}</span><span><MountainSnow/> {hasForecast ? displayAmount(r.snow, units, "snow") : "—"} {snowLabel(units)}</span></div><p className="region-risks"><TriangleAlert size={13}/> {r.risks}</p></article>})}</div></section>
     <footer><div><BrainCircuit size={17}/> Mistral Winter Lab</div><p>AI-generated scenario guidance, not an official weather forecast. Validate decisions against NOAA and California DWR products.</p><span>Powered by Mistral API</span></footer>
   </main>;
 }
