@@ -21,7 +21,7 @@ from data.data_preprocessor import DataPreprocessor, train_test_split
 from models.baseline.xgboost_model import XGBoostForecaster, XGBoostConfig
 from agent.experiment_agent import ExperimentAgent
 from agent.forecast_explainer import ForecastExplainer
-from agent.scenario_simulator import ScenarioSimulator
+from models.winter_outlook import CaliforniaWinterOutlook, ClimateScenario, generate_demo_history, summarize_outlook
 
 
 def main():
@@ -226,33 +226,22 @@ def main():
             print(f"   Mistral agent error (API key may be required): {e}")
             print()
     
-    # Scenario simulation
-    print("8. Running Scenario Simulation...")
+    # Climate-index winter outlook (supported workflow)
+    print("8. Running California winter outlook...")
     try:
-        simulator = ScenarioSimulator()
-        
-        # Define a scenario
-        scenario_desc = "Strong El Niño with 2°C warmer temperatures and 15% more precipitation"
-        scenario = simulator.parse_scenario(scenario_desc)
-        
-        print(f"   - Scenario: {scenario.name}")
-        print(f"   - Parameters: {list(scenario.parameters.keys())}")
-        
-        # Run scenario
-        result = simulator.run_scenario(
-            base_data=merged_data,
-            scenario=scenario,
-            model=xgb_model,
-            target_column='swe'
-        )
-        
-        print(f"   - Impact: {result.impact_summary['percentage_change']:+.1f}%")
-        print(f"   - Summary: {result.natural_language_summary[:100]}...")
-        
-        simulator.close()
-        
+        history = generate_demo_history(1981, 2022, random_state=7)
+        outlook = CaliforniaWinterOutlook(n_estimators=40 if args.quick else 120, random_state=7).fit(history)
+        scenario = ClimateScenario(enso=1.2, pdo=0.5, ao=-0.2, pna=0.4)
+        forecast = outlook.predict(2025, scenario)
+        summary = summarize_outlook(forecast, history)
+
+        print(f"   - Statewide wetness: {summary['statewide_wetness']}")
+        print(f"   - Precipitation vs normal: {summary['statewide_precipitation_pct_normal']:.1f}%")
+        print(f"   - Temperature anomaly: {summary['statewide_temperature_anomaly_c']:+.2f} °C")
+        print(f"   - Season phases: {len(summary['season_phases'])}")
+        print(f"   - Regional outlooks: {len(summary['regional_summary'])}")
     except Exception as e:
-        print(f"   Scenario simulation error: {e}")
+        print(f"   Winter outlook error: {e}")
     
     print()
     print("=" * 60)

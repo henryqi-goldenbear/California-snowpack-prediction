@@ -1,7 +1,9 @@
 """
-Scenario Simulator Module
+Experimental scenario utilities (legacy).
 
-Allows users to specify scenarios in natural language and simulate their impact on snowpack forecasts.
+This module is not used by Mistral Winter Lab. The shipped dashboard takes
+numeric climate-index sliders (ENSO, PDO, AO, PNA), not free-text scenarios.
+Use `winter_outlook.py` or the web dashboard for supported workflows.
 """
 
 import json
@@ -109,8 +111,10 @@ class ScenarioSimulatorConfig:
 
 class ScenarioSimulator:
     """
-    A Mistral-based simulator that allows users to specify scenarios in natural language
-    and simulate their impact on snowpack forecasts.
+    A Mistral-based utility for experimental offline scenario parsing.
+
+    Not used by Mistral Winter Lab. Prefer numeric `ClimateScenario` inputs via
+    `winter_outlook.py` or the dashboard climate sliders for supported forecasts.
     """
     
     def __init__(self, config: Optional[ScenarioSimulatorConfig] = None):
