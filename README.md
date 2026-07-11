@@ -134,7 +134,7 @@ the required schema is enforced by `validate_history`.
 
 ### Interactive frontend demo
 
-The Sierra Signal dashboard turns ENSO, PDO, AO, and PNA into a predicted
+The Mistral Winter Lab dashboard turns ENSO, PDO, AO, and PNA into a predicted
 temperature anomaly, then uses that temperature to determine snowfall and
 into a plain-language statewide outlook, monthly November-April trajectory,
 and seven regional precipitation and snowfall summaries.
@@ -151,6 +151,11 @@ trajectory between precipitation and snowfall. To create a production build:
 npm run build
 npm run preview
 ```
+
+The deployed dashboard uses the Mistral API through a server-side endpoint.
+Set `MISTRAL_API_KEY` in the hosting environment; never place the key in
+frontend code. `MISTRAL_MODEL` optionally overrides the default
+`mistral-small-latest` model.
 
 ### 1. Running a Baseline Forecast
 

@@ -14,3 +14,15 @@
 .temperature-result b { font-size: 24px; letter-spacing: -.04em; margin-top: 4px; }
 .temperature-result span { font: 9px DM Mono; color: #648078; }
 .temperature-result + .signal-note { margin-top: 10px; }
+.mistral-button {
+  width: 100%; margin-top: 20px; padding: 13px 16px; border: 0; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: #173a38; color: #eef8f3; font-weight: 700; font-size: 12px;
+  box-shadow: 0 8px 20px rgba(23,58,56,.16);
+}
+.mistral-button:hover { background: #24564f; }
+.mistral-button:disabled { opacity: .7; cursor: wait; }
+.mistral-button svg { width: 16px; height: 16px; }
+.api-error { margin: 10px 0 0; padding: 10px; color: #963f2c; background: #f7e3dc; border-radius: 8px; font-size: 10px; line-height: 1.45; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
