@@ -1,0 +1,16 @@
+.temperature-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 15px;
+  background: #deebe5;
+  border: 1px solid #cadbd3;
+  border-radius: 12px;
+  color: #285c52;
+}
+.temperature-result > div { display: grid; grid-template-columns: 1fr auto; align-items: baseline; flex: 1; }
+.temperature-result small { grid-column: 1 / -1; font: 9px DM Mono; text-transform: uppercase; letter-spacing: .07em; }
+.temperature-result b { font-size: 24px; letter-spacing: -.04em; margin-top: 4px; }
+.temperature-result span { font: 9px DM Mono; color: #648078; }
+.temperature-result + .signal-note { margin-top: 10px; }

@@ -25,6 +25,10 @@ venv/
 ENV/
 env/
 .venv/
+.deps/
+.tmp/
+node_modules/
+dist/
 
 # IDE
 .idea/

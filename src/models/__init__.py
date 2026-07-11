@@ -1,9 +1,10 @@
-# Models module
-from .baseline.xgboost_model import XGBoostForecaster
-from .baseline.lstm_model import LSTMPredictor
-from .baseline.prophet_model import ProphetForecaster
-from .baseline.random_forest_model import RandomForestForecaster
-from .baseline.linear_model import LinearRegressionForecaster
+"""Forecast models.
+
+Baseline libraries are optional and can be large, so imports are resolved only
+when a caller asks for a particular legacy model.
+"""
+
+from importlib import import_module
 
 __all__ = [
     'XGBoostForecaster',
@@ -12,3 +13,17 @@ __all__ = [
     'RandomForestForecaster',
     'LinearRegressionForecaster'
 ]
+
+_MODEL_MODULES = {
+    "XGBoostForecaster": ".baseline.xgboost_model",
+    "LSTMPredictor": ".baseline.lstm_model",
+    "ProphetForecaster": ".baseline.prophet_model",
+    "RandomForestForecaster": ".baseline.random_forest_model",
+    "LinearRegressionForecaster": ".baseline.linear_model",
+}
+
+
+def __getattr__(name):
+    if name not in _MODEL_MODULES:
+        raise AttributeError(name)
+    return getattr(import_module(_MODEL_MODULES[name], __name__), name)

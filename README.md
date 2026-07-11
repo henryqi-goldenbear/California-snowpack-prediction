@@ -114,6 +114,44 @@ print(suggestions)
 
 ## Usage Examples
 
+### Climate-driven statewide winter outlook
+
+Run a November-April forecast for every California region using ENSO, PDO, AO,
+and PNA. The indices first predict temperature; predicted temperature then
+controls the rain/snow partition and snowfall. The command reports statewide winter
+wetness, precipitation and snowfall totals, the monthly trajectory, regional
+detail, and a held-out-year backtest:
+
+```bash
+python winter_outlook.py --water-year 2025 --enso 1.2 --pdo 0.5 \
+  --ao -0.2 --pna 0.4 --quick
+```
+
+The bundled history generator is deterministic and intended for offline E2E
+validation. For operational forecasts, train `CaliforniaWinterOutlook` with
+observed regional monthly NOAA climate indices and CDEC precipitation/snowfall;
+the required schema is enforced by `validate_history`.
+
+### Interactive frontend demo
+
+The Sierra Signal dashboard turns ENSO, PDO, AO, and PNA into a predicted
+temperature anomaly, then uses that temperature to determine snowfall and
+into a plain-language statewide outlook, monthly November-April trajectory,
+and seven regional precipitation and snowfall summaries.
+
+```bash
+npm install
+npm run dev
+```
+
+Open `http://127.0.0.1:5173`, adjust the climate sliders, and switch the
+trajectory between precipitation and snowfall. To create a production build:
+
+```bash
+npm run build
+npm run preview
+```
+
 ### 1. Running a Baseline Forecast
 
 ```python
