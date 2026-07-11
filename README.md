@@ -21,10 +21,13 @@ Mistral is **not** used to parse free-text scenario descriptions in the shipped 
 - View Mistral’s **statewide winter read** plus **early (Nov–Dec), mid (Jan–Feb), and late (Mar–Apr)** season breakdowns
 - Explore a **monthly precipitation/snowfall trajectory** and **seven regional outlooks**
 - Read **region-specific winter risks** (flooding, drought, snowpack deficit, etc.) for each area
+- See **water allocation** outlook (reservoirs, agriculture, cities, ecosystems) and **wildfire carryover** risk for the following fire season
 
 ### CaliforniaWinterOutlook (Python)
 
 - Causal chain: climate indices → temperature anomaly → precipitation → rain/snow partition → snowfall
+- **Recency-weighted training** — recent water years count more when fitting (7-year half-life by default)
+- **Recency-weighted baselines** — “normal” precipitation and snow reflect recent winters, not a flat long-run mean
 - Regional forecasts for seven California zones and statewide summaries
 - Held-out water-year backtesting with scikit-learn random forests
 
@@ -142,6 +145,24 @@ npm run dev
 Open `http://127.0.0.1:5173`, adjust the climate sliders, and click **Refresh with Mistral**.
 
 Set `MISTRAL_API_KEY` in `.env` for local runs. `MISTRAL_MODEL` optionally overrides the default `mistral-small-latest`.
+
+### Public demo (not localhost)
+
+Build and serve the dashboard plus Mistral API on one port (default `8080`, all interfaces):
+
+```bash
+npm run start:public
+```
+
+Then expose it with a Cloudflare quick tunnel:
+
+```bash
+npx cloudflared tunnel --url http://127.0.0.1:8080
+```
+
+Share the `https://*.trycloudflare.com` URL. Anyone with the link can use the dashboard; the tunnel stays up while both processes keep running.
+
+On your local network you can also open `http://<your-lan-ip>:8080` without a tunnel.
 
 ### 1. Running a Baseline Forecast
 

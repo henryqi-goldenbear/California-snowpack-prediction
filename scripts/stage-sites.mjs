@@ -9,5 +9,8 @@ const assets = { "/": { body: readFileSync("dist/index.html", "utf8"), type: con
 for (const file of readdirSync("dist/assets")) {
   assets[`/assets/${file}`] = { body: readFileSync(`dist/assets/${file}`, "utf8"), type: contentType(file) };
 }
-const worker = readFileSync("worker/index.js", "utf8").replace("const STATIC_ASSETS = {};", `const STATIC_ASSETS = ${JSON.stringify(assets)};`);
+const worker = readFileSync("worker/index.js", "utf8").replace(
+  "const STATIC_ASSETS = {};",
+  "const STATIC_ASSETS = JSON.parse(atob(" + JSON.stringify(Buffer.from(JSON.stringify(assets)).toString("base64")) + "));",
+);
 writeFileSync("dist/server/index.js", worker);

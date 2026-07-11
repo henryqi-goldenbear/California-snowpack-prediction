@@ -1,0 +1,7 @@
+name = "mistral-winter-lab"
+main = "dist/server/index.js"
+compatibility_date = "2024-12-01"
+workers_dev = true
+
+[vars]
+MISTRAL_MODEL = "mistral-small-latest"

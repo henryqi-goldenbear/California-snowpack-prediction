@@ -80,9 +80,10 @@ class CaliforniaWinterOutlook:
     precipitation_features = [*base_features, "temperature_anomaly"]
     snowfall_features = [*precipitation_features, "precipitation_mm"]
 
-    def __init__(self, n_estimators: int = 180, random_state: int = 42):
+    def __init__(self, n_estimators: int = 180, random_state: int = 42, recency_half_life_years: float = 7.0):
         self.n_estimators = n_estimators
         self.random_state = random_state
+        self.recency_half_life_years = recency_half_life_years
         self.temperature_model = self._make_pipeline()
         self.precipitation_model = self._make_pipeline()
         self.snowfall_model = self._make_pipeline()
@@ -106,11 +107,27 @@ class CaliforniaWinterOutlook:
         result["elevation_m"] = result["region"].map(lambda r: REGIONS[r]["elevation_m"])
         return result
 
+    @staticmethod
+    def _recency_weights(water_years: pd.Series, half_life_years: float) -> np.ndarray:
+        """Exponential weights: recent water years count more when fitting and baselining."""
+        if half_life_years <= 0:
+            return np.ones(len(water_years))
+        latest = float(water_years.max())
+        age = latest - water_years.to_numpy(dtype=float)
+        return np.exp(-np.log(2) * age / half_life_years)
+
     def fit(self, history: pd.DataFrame) -> "CaliforniaWinterOutlook":
         history = self._add_geography(validate_history(history))
-        self.temperature_model.fit(history[self.base_features], history["temperature_anomaly"])
-        self.precipitation_model.fit(history[self.precipitation_features], history["precipitation_mm"])
-        self.snowfall_model.fit(history[self.snowfall_features], history["snowfall_cm"])
+        weights = self._recency_weights(history["water_year"], self.recency_half_life_years)
+        self.temperature_model.fit(
+            history[self.base_features], history["temperature_anomaly"], model__sample_weight=weights,
+        )
+        self.precipitation_model.fit(
+            history[self.precipitation_features], history["precipitation_mm"], model__sample_weight=weights,
+        )
+        self.snowfall_model.fit(
+            history[self.snowfall_features], history["snowfall_cm"], model__sample_weight=weights,
+        )
         self._fitted = True
         return self
 
@@ -161,6 +178,24 @@ class CaliforniaWinterOutlook:
         }
 
 
+def _impact_level(precip_pct: float, temp_c: float, snow_pct: float, kind: str) -> Dict[str, str]:
+    if kind == "water":
+        if precip_pct <= 85 or snow_pct <= 85:
+            level, summary = "High", "Below-normal snowpack and runoff increase the likelihood of tighter reservoir allocations, reduced agricultural deliveries, and conservation calls for urban users."
+        elif precip_pct >= 115:
+            level, summary = "Moderate", "Above-normal precipitation supports reservoir refill, but warm anomalies may shift runoff earlier and complicate flood-control versus storage tradeoffs."
+        else:
+            level, summary = "Moderate", "Near-normal supplies likely support routine reservoir operations, with allocation pressure concentrated in groundwater-dependent basins and dry southern zones."
+    else:
+        if precip_pct <= 85 and temp_c >= 0.5:
+            level, summary = "High", "Dry, warm winter conditions favor fine-fuel carryover, early grass curing, and elevated wildfire potential the following summer and fall."
+        elif precip_pct >= 115:
+            level, summary = "Low", "Wetter conditions increase soil moisture and delay curing, though wind events and late-season dry-down can still produce brief fire-weather windows."
+        else:
+            level, summary = "Moderate", "Mixed winter signals suggest typical fuel loading with fire-season severity depending on spring green-up and late-summer heat."
+    return {"riskLevel": level, "summary": summary}
+
+
 def _describe_regional_risks(region: str, precip_pct: float, snow_pct: float, temp_c: float) -> str:
     """Summarize plausible winter hazards from regional forecast anomalies."""
     risks = []
@@ -183,11 +218,28 @@ def _describe_regional_risks(region: str, precip_pct: float, snow_pct: float, te
     return "; ".join(risks[:3]).capitalize() + "."
 
 
+def _recency_weighted_normal(climatology: pd.DataFrame, half_life_years: float = 7.0) -> pd.DataFrame:
+    """Baselines that emphasize recent winters over long-run averages."""
+    frame = climatology.copy()
+    weights = CaliforniaWinterOutlook._recency_weights(frame["water_year"], half_life_years)
+    frame["_recency_weight"] = weights
+    rows = []
+    for (region, month), group in frame.groupby(["region", "month"], sort=False):
+        w = group["_recency_weight"].to_numpy()
+        rows.append({
+            "region": region,
+            "month": month,
+            "precipitation_mm": float(np.average(group["precipitation_mm"], weights=w)),
+            "snowfall_cm": float(np.average(group["snowfall_cm"], weights=w)),
+        })
+    return pd.DataFrame(rows)
+
+
 def summarize_outlook(forecast: pd.DataFrame, climatology: pd.DataFrame,
-                      units: str = "metric") -> Dict[str, object]:
+                      units: str = "metric", recency_half_life_years: float = 7.0) -> Dict[str, object]:
     """Return statewide wetness/snow totals, Nov-Apr trajectory, and seasonal phases."""
     climate = validate_history(climatology)
-    normal = climate.groupby(["region", "month"])[["precipitation_mm", "snowfall_cm"]].mean()
+    normal = _recency_weighted_normal(climate, recency_half_life_years).set_index(["region", "month"])
     compared = forecast.join(normal, on=["region", "month"], rsuffix="_normal")
     for variable in ("precipitation_mm", "snowfall_cm"):
         compared[f"{variable}_pct_normal"] = 100 * compared[variable] / compared[f"{variable}_normal"].clip(lower=0.01)
@@ -240,18 +292,25 @@ def summarize_outlook(forecast: pd.DataFrame, climatology: pd.DataFrame,
             "precipitation_pct_normal": float(precip_pct),
             "risks": _describe_regional_risks(region, precip_pct, snow_pct, temp_mean),
         })
+    statewide_temp = float(
+        (weighted.temperature_anomaly * weighted.area_weight).sum() / weighted.area_weight.sum()
+    )
+    statewide_snow_pct = 100 * weighted.weighted_snow.sum() / weighted.assign(
+        weighted_snow_normal=lambda x: x.snowfall_cm_normal * x.area_weight
+    ).weighted_snow_normal.sum()
     return {
         "statewide_wetness": category,
         "statewide_precipitation_pct_normal": float(precip_pct),
         "statewide_precipitation_mm": float(weighted.weighted_precip.sum()),
         "statewide_snowfall_cm": float(weighted.weighted_snow.sum()),
-        "statewide_temperature_anomaly_c": float(
-            (weighted.temperature_anomaly * weighted.area_weight).sum() / weighted.area_weight.sum()
-        ),
+        "statewide_temperature_anomaly_c": statewide_temp,
+        "water_allocation": _impact_level(precip_pct, statewide_temp, statewide_snow_pct, "water"),
+        "wildfire_risk": _impact_level(precip_pct, statewide_temp, statewide_snow_pct, "wildfire"),
         "trajectory": trajectory.to_dict(orient="records"),
         "season_phases": season_phases,
         "regional_summary": regional_summary,
         "regional_monthly": compared.to_dict(orient="records"),
+        "recency_half_life_years": recency_half_life_years,
         "units": units,
         "display": format_outlook_units({
             "statewide_precipitation_mm": float(weighted.weighted_precip.sum()),

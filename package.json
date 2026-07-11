@@ -8,7 +8,10 @@
     "demo": "node scripts/local-api-server.mjs",
     "demo:full": "node scripts/local-api-server.mjs & vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build && node scripts/stage-sites.mjs",
-    "preview": "vite preview --host 127.0.0.1"
+    "deploy": "npm run build && npx --yes wrangler@3 deploy",
+    "start": "node scripts/production-server.mjs",
+    "start:public": "npm run build && node scripts/production-server.mjs",
+    "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
     "@vitejs/plugin-react": "4.3.4",

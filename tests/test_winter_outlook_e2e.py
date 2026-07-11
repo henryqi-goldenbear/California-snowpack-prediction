@@ -41,6 +41,26 @@ def test_climate_indices_change_the_forecast():
     assert not np.allclose(cold_pdo.temperature_anomaly, warm_pdo.temperature_anomaly)
 
 
+def test_recency_weighting_favors_recent_years():
+    history = generate_demo_history(1981, 2022, random_state=13)
+    recent = CaliforniaWinterOutlook(n_estimators=35, random_state=13, recency_half_life_years=5.0).fit(history)
+    uniform = CaliforniaWinterOutlook(n_estimators=35, random_state=13, recency_half_life_years=0.0).fit(history)
+    scenario = ClimateScenario(enso=1.4, pdo=0.6, ao=-0.3, pna=0.5)
+    recent_forecast = recent.predict(2023, scenario)
+    uniform_forecast = uniform.predict(2023, scenario)
+    assert not np.allclose(recent_forecast.precipitation_mm, uniform_forecast.precipitation_mm)
+
+
+def test_recency_weighted_climatology():
+    history = generate_demo_history(1981, 2022, random_state=17)
+    summary = summarize_outlook(
+        CaliforniaWinterOutlook(n_estimators=35, random_state=17).fit(history).predict(2023, ClimateScenario(0.5, 0.2)),
+        history,
+        recency_half_life_years=6.0,
+    )
+    assert summary["recency_half_life_years"] == 6.0
+
+
 def test_predicted_temperature_controls_snowfall():
     history = generate_demo_history(1981, 2022, random_state=19)
     model = CaliforniaWinterOutlook(n_estimators=45, random_state=19).fit(history)
