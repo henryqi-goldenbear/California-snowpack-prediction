@@ -2,15 +2,19 @@
 
 A California winter outlook pipeline and **Mistral Winter Lab** dashboard that turn Pacific climate indices into temperature, precipitation, and snowfall guidance across seven regions.
 
+**Live demo:** [https://mistral-winter-lab.henryqi.workers.dev](https://mistral-winter-lab.henryqi.workers.dev)
+
+No sign-in required. Adjust the climate sliders and Mistral returns a statewide outlook in about 15-20 seconds.
+
 ## Overview
 
 The project combines:
 
 - **Mistral Winter Lab** — an interactive dashboard where users adjust ENSO/ONI, PDO, AO, and PNA sliders and receive Mistral-generated statewide, seasonal, and regional outlooks
-- **CaliforniaWinterOutlook** — a Python model that predicts regional Nov–Apr precipitation and snowfall from numeric climate indices
+- **CaliforniaWinterOutlook** — a Python model that predicts regional Nov-Apr precipitation and snowfall from numeric climate indices
 - **Optional Mistral agents** — Python helpers for experiment design and forecast explanation in offline workflows
 
-Mistral is **not** used to parse free-text scenario descriptions in the shipped demo. Climate inputs are numeric indices; Mistral generates the narrative forecast, early/mid/late season analysis, and regional winter-risk text from those values.
+Mistral is **not** used to parse free-text scenario descriptions in the shipped demo. Climate inputs are numeric indices; Mistral generates the narrative forecast, early/mid/late season analysis, regional winter-risk text, water allocation outlook, and wildfire carryover assessment from those values.
 
 ## Features
 
@@ -18,16 +22,17 @@ Mistral is **not** used to parse free-text scenario descriptions in the shipped 
 
 - Adjust **ENSO/ONI, PDO, AO, and PNA** with sliders for a selected water year
 - Toggle **metric or imperial** units for temperature, precipitation, and snowfall
-- View Mistral’s **statewide winter read** plus **early (Nov–Dec), mid (Jan–Feb), and late (Mar–Apr)** season breakdowns
+- View Mistral's **statewide winter read** plus **early (Nov-Dec), mid (Jan-Feb), and late (Mar-Apr)** season breakdowns
 - Explore a **monthly precipitation/snowfall trajectory** and **seven regional outlooks**
 - Read **region-specific winter risks** (flooding, drought, snowpack deficit, etc.) for each area
 - See **water allocation** outlook (reservoirs, agriculture, cities, ecosystems) and **wildfire carryover** risk for the following fire season
+- Recent winters are weighted more heavily in Mistral's reasoning (2023 ARs, 2020-2022 drought, etc.)
 
 ### CaliforniaWinterOutlook (Python)
 
 - Causal chain: climate indices → temperature anomaly → precipitation → rain/snow partition → snowfall
 - **Recency-weighted training** — recent water years count more when fitting (7-year half-life by default)
-- **Recency-weighted baselines** — “normal” precipitation and snow reflect recent winters, not a flat long-run mean
+- **Recency-weighted baselines** — "normal" precipitation and snow reflect recent winters, not a flat long-run mean
 - Regional forecasts for seven California zones and statewide summaries
 - Held-out water-year backtesting with scikit-learn random forests
 
@@ -47,264 +52,137 @@ California-snowpack-prediction/
 │   ├── models/                 # CaliforniaWinterOutlook + baseline models
 │   ├── agent/                  # Optional Mistral Python agents
 │   └── data/                   # Data loading and preprocessing
-├── worker/                     # Sites / local API handler (Mistral forecast)
-├── scripts/                    # Build and local dev helpers
+├── worker/                     # Cloudflare Worker / local API (Mistral forecast)
+├── scripts/                    # Build, staging, and local dev helpers
 ├── tests/                      # Python E2E tests
+├── wrangler.toml               # Cloudflare Workers deploy config
 ├── winter_outlook.py           # CLI for statewide winter outlook
 ├── package.json                # Frontend (Vite + React)
 └── requirements.txt            # Python dependencies
 ```
 
-## AI for Climate and Environment
-
-Snowpack is a critical water resource and hazard driver:
-- **Water supply planning** for California's agricultural and urban needs
-- **Flood risk assessment** from rapid snowmelt
-- **Drought forecasting** based on snowpack deficits
-- **Ski industry planning** for resort operations
-
-Mistral's high-performance, efficient LLMs are ideal for:
-- Agentic workflows in domain-specific applications
-- Customization for environmental datasets and APIs
-- Decision support for operations (reservoir management, resort planning)
-
 ## Getting Started
 
 ### Prerequisites
 
-- Python 3.9+
-- Mistral AI API key (for agent functionality)
-- Required Python packages (see requirements.txt)
+- **Node.js 20+** for the dashboard and Cloudflare deploy
+- **Python 3.9+** for the offline outlook model and agents
+- **Mistral API key** for live forecasts (`MISTRAL_API_KEY`)
 
-### Installation
+### Frontend setup
 
 ```bash
-# Clone the repository
 git clone https://github.com/henryqi-goldenbear/California-snowpack-prediction.git
 cd California-snowpack-prediction
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### Quick Start
-
-```python
-from src.agent.experiment_agent import ExperimentAgent
-from src.data.data_loader import load_snowpack_data
-
-# Load data
-data = load_snowpack_data()
-
-# Initialize agent
-agent = ExperimentAgent(api_key="your-mistral-api-key")
-
-# Get experiment suggestions
-suggestions = agent.suggest_experiments(data_summary=data.describe())
-print(suggestions)
-```
-
-## Usage Examples
-
-### Climate-driven statewide winter outlook
-
-Run a November-April forecast for every California region using ENSO, PDO, AO,
-and PNA. The indices first predict temperature; predicted temperature then
-controls the rain/snow partition and snowfall. The command reports statewide winter
-wetness, precipitation and snowfall totals, the monthly trajectory, regional
-detail, and a held-out-year backtest:
-
-```bash
-python winter_outlook.py --water-year 2025 --enso 1.2 --pdo 0.5 \
-  --ao -0.2 --pna 0.4 --quick
-```
-
-The bundled history generator is deterministic and intended for offline E2E
-validation. For operational forecasts, train `CaliforniaWinterOutlook` with
-observed regional monthly NOAA climate indices and CDEC precipitation/snowfall;
-the required schema is enforced by `validate_history`.
-
-### Interactive frontend demo
-
-The **Mistral Winter Lab** dashboard sends your slider values to the Mistral API and renders the returned outlook: statewide summary, early/mid/late season cards, monthly trajectory, seven regional totals, and regional winter risks. Choose **metric or imperial** units in the header.
-
-```bash
 npm install
+cp .env.example .env   # add your MISTRAL_API_KEY
+```
 
-# Terminal 1 — local Mistral API
+### Local dashboard
+
+```bash
+# Terminal 1 — local Mistral API (port 8787)
 npm run demo
 
-# Terminal 2 — dashboard
+# Terminal 2 — dashboard (port 5173)
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173`, adjust the climate sliders, and click **Refresh with Mistral**.
+Open [http://127.0.0.1:5173](http://127.0.0.1:5173), adjust the climate sliders, and click **Refresh with Mistral**.
 
-Set `MISTRAL_API_KEY` in `.env` for local runs. `MISTRAL_MODEL` optionally overrides the default `mistral-small-latest`.
+`MISTRAL_MODEL` in `.env` optionally overrides the default `mistral-small-latest`.
 
-### Public demo (not localhost)
+### Local production server
 
-Build and serve the dashboard plus Mistral API on one port (default `8080`, all interfaces):
+Serve the built dashboard and API on one port (default `8080`):
 
 ```bash
 npm run start:public
 ```
 
-Then expose it with a Cloudflare quick tunnel:
+Open [http://127.0.0.1:8080](http://127.0.0.1:8080). On your LAN, use `http://<your-ip>:8080`.
+
+### Deploy to Cloudflare Workers (permanent host)
+
+1. Log in once: `npx wrangler@3 login`
+2. Register a `workers.dev` subdomain in the [Cloudflare dashboard](https://dash.cloudflare.com/) if prompted
+3. Store your API key: `npx wrangler@3 secret put MISTRAL_API_KEY`
+4. Deploy: `npm run deploy`
+
+The app publishes to `https://mistral-winter-lab.<your-subdomain>.workers.dev`.
+
+### Python outlook CLI
 
 ```bash
-npx cloudflared tunnel --url http://127.0.0.1:8080
+python -m venv venv
+source venv/bin/activate          # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+python winter_outlook.py --water-year 2025 --enso 1.2 --pdo 0.5 \
+  --ao -0.2 --pna 0.4 --quick
 ```
 
-Share the `https://*.trycloudflare.com` URL. Anyone with the link can use the dashboard; the tunnel stays up while both processes keep running.
+The bundled history generator is deterministic and intended for offline E2E validation. For operational forecasts, train `CaliforniaWinterOutlook` with observed regional monthly NOAA climate indices and CDEC precipitation/snowfall.
 
-On your local network you can also open `http://<your-lan-ip>:8080` without a tunnel.
+## API
 
-### 1. Running a Baseline Forecast
+The Worker exposes a single forecast endpoint:
 
-```python
-from src.models.baseline.xgboost_model import XGBoostForecaster
-from src.data.data_loader import load_snowpack_data
+```http
+POST /api/forecast
+Content-Type: application/json
 
-# Load and preprocess data
-data = load_snowpack_data()
-X, y = preprocess_data(data)
-
-# Train and predict
-model = XGBoostForecaster()
-model.fit(X, y)
-predictions = model.predict_future(horizon=12)
+{
+  "year": 2027,
+  "enso": 0.8,
+  "pdo": 0.35,
+  "ao": 0.0,
+  "pna": 0.2
+}
 ```
 
-### 2. Using the Mistral Agent
-
-```python
-from src.agent.experiment_agent import ExperimentAgent
-
-# Initialize agent
-agent = ExperimentAgent()
-
-# Get feature engineering suggestions
-feature_suggestions = agent.suggest_features(
-    variables=data.columns.tolist(),
-    target="swe"  # Snow Water Equivalent
-)
-
-# Get model recommendations
-model_suggestions = agent.suggest_models(
-    data_shape=X.shape,
-    forecast_horizon=12
-)
-```
-
-### 3. Generating Forecast Reports (optional Python agent)
-
-```python
-from src.agent.forecast_explainer import ForecastExplainer
-
-explainer = ForecastExplainer()
-report = explainer.explain_forecast(
-    predictions=predictions,
-    feature_importance=model.feature_importances_,
-    historical_context=data,
-)
-print(report.natural_language_summary)
-```
-
-## Data Sources
-
-The project uses the following data sources:
-
-1. **California Data Exchange Center (CDEC)**
-   - Snow water equivalent (SWE) measurements
-   - Snow depth measurements
-   - Precipitation data
-
-2. **NOAA Climate Data**
-   - Temperature records
-   - Precipitation records
-   - Climate indices (ENSO, PDO)
-
-3. **USGS Water Data**
-   - Streamflow data
-   - Reservoir levels
-
-4. **NASA/NOAA Remote Sensing**
-   - MODIS snow cover extent
-   - Satellite-derived snow metrics
+Returns JSON with `summary`, `category`, statewide metrics, `seasonPhases`, monthly `trajectory`, seven `details` (with `risks`), `waterAllocation`, and `wildfireRisk`.
 
 ## Model Architecture
 
-### Baseline Models
+### Mistral Winter Lab API (`worker/index.js`)
 
-1. **XGBoost**
-   - Gradient boosting for tabular data
-   - Handles missing values and outliers well
-   - Feature importance analysis
+- Accepts numeric climate indices (ENSO, PDO, AO, PNA, water year)
+- Calls Mistral with a structured prompt anchored on recent California winter precedents
+- Returns validated JSON for the dashboard
 
-2. **LSTM (Long Short-Term Memory)**
-   - Recurrent neural network for time series
-   - Captures temporal dependencies
-   - Good for sequential snowpack data
+### CaliforniaWinterOutlook (Python)
 
-3. **Prophet**
-   - Facebook's time series forecasting
-   - Handles seasonality and holidays
-   - Robust to missing data
+- Random-forest regressors with recency-weighted training
+- Separate regional precipitation and snowfall models
+- Season-phase and impact summaries for offline use
 
-### Mistral-Powered Components
+### Optional Python agents
 
-1. **Mistral Winter Lab API** (`worker/index.js`)
-   - Accepts numeric climate indices (ENSO, PDO, AO, PNA, water year)
-   - Returns structured JSON: statewide outlook, seasonal phases, trajectory, regional detail, and regional risks
+- **Experiment Agent** — LLM-based experiment design suggestions
+- **Forecast Explainer** — natural-language explanations of tabular model outputs
 
-2. **Experiment Agent** (optional, Python)
-   - LLM-based experiment design suggestions for offline modeling workflows
-
-3. **Forecast Explainer** (optional, Python)
-   - Natural language explanations of tabular model outputs
-
-## Evaluation Metrics
-
-- **RMSE (Root Mean Squared Error)**: Primary metric for forecast accuracy
-- **MAE (Mean Absolute Error)**: Robust to outliers
-- **R² (R-squared)**: Explained variance
-- **CRPS (Continuous Ranked Probability Score)**: For probabilistic forecasts
-- **NSE (Nash-Sutcliffe Efficiency)**: Hydrology-specific metric
-
-## Project Roadmap
+## Roadmap
 
 - [x] Mistral Winter Lab dashboard with climate-index sliders
 - [x] Mistral API forecast with seasonal and regional analysis
-- [x] CaliforniaWinterOutlook Python model with E2E tests
 - [x] Metric/imperial unit toggle
 - [x] Regional winter-risk descriptions
+- [x] Water allocation and wildfire carryover analysis
+- [x] Recency-weighted outlook reasoning
+- [x] Public Cloudflare Workers deployment
 - [ ] Connect live NOAA/CDEC observations to replace demo history
 - [ ] Optional Python agents integrated into a unified CLI
 
-## Contributing
-
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-- Mistral AI for providing the foundation models
-- California Department of Water Resources for snowpack data
-- NOAA for climate data
-- USGS for hydrological data
-
-## Contact
-
-For questions or collaboration opportunities, please open an issue or contact the project maintainers.
+- Mistral AI for the forecast API
+- California Department of Water Resources, NOAA, and USGS for hydrologic and climate data used in model development
 
 ---
 
-**Built with Mistral AI and Python**
+**Built with Mistral AI, React, and Python**
