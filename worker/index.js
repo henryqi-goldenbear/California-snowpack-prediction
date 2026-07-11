@@ -9,7 +9,10 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname !== "/api/forecast") {
-      if (env?.ASSETS?.fetch) return env.ASSETS.fetch(request);
+      if (env?.ASSETS?.fetch) {
+        const assetResponse = await env.ASSETS.fetch(request);
+        if (assetResponse.status !== 404) return assetResponse;
+      }
       const asset = STATIC_ASSETS[url.pathname] || (url.pathname.includes(".") ? null : STATIC_ASSETS["/"]);
       if (!asset) return new Response("Not found", { status: 404 });
       return new Response(asset.body, { headers: { "content-type": asset.type, "cache-control": url.pathname === "/" ? "no-cache" : "public, max-age=31536000, immutable" } });
