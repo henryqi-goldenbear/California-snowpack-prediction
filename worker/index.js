@@ -1,5 +1,6 @@
 const REGIONS = ["North Coast", "Shasta & Cascades", "Northern Sierra", "Central Sierra", "Southern Sierra", "Central Coast & Valleys", "Southern California"];
 const MONTHS = ["Nov", "Dec", "Jan", "Feb", "Mar", "Apr"];
+const STATIC_ASSETS = {};
 
 const corsHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: corsHeaders });
@@ -9,7 +10,9 @@ export default {
     const url = new URL(request.url);
     if (url.pathname !== "/api/forecast") {
       if (env?.ASSETS?.fetch) return env.ASSETS.fetch(request);
-      return new Response("Mistral Winter Lab", { headers: { "content-type": "text/plain" } });
+      const asset = STATIC_ASSETS[url.pathname] || (url.pathname.includes(".") ? null : STATIC_ASSETS["/"]);
+      if (!asset) return new Response("Not found", { status: 404 });
+      return new Response(asset.body, { headers: { "content-type": asset.type, "cache-control": url.pathname === "/" ? "no-cache" : "public, max-age=31536000, immutable" } });
     }
     if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
     if (!env.MISTRAL_API_KEY) return json({ error: "Mistral API key is not configured yet." }, 503);
